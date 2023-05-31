@@ -96,7 +96,7 @@ int OSMP_Size(int *size);
 int OSMP_Rank(int *rank);
 int OSMP_Send();
 int OSMP_Recv();
-int OSMP_Bcast();
+int OSMP_Bcast(void *buf, int count, OSMP_Datatype datatype, bool send, int *source, int *len);
 int OSMP_Barrier();
 
 

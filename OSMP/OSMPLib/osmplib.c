@@ -162,8 +162,18 @@ int OSMP_Recv() {
     return 0;
 }
 
-int OSMP_Bcast() {
+int OSMP_Bcast(void *buf, int count, OSMP_Datatype datatype, bool send, int *source, int *len) {
     debug("OSMP_BCAST", rankNow, NULL, NULL);
-    printf("broadcast\n");
+
+    if (send == true) {
+        //nachricht setzen
+        memcpy(shm->broadcastMsg.buffer, buf, 1);
+        printf("broadcast gesetzt\n");
+
+    } else {
+        memcpy(buf, shm->broadcastMsg.buffer, buf, 1);
+        printf("broadcast gelesen");
+    }
+
     return 0;
 }

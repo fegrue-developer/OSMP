@@ -13,9 +13,9 @@ int main(int argc, char *argv[]) {
         }*/
 
         if (rank == 0) {
-            OSMP_Bcast();
+            //OSMP_Bcast();
         } else {
-            OSMP_Recv();
+            //OSMP_Recv();
         }
 
         return OSMP_SUCCESS;
