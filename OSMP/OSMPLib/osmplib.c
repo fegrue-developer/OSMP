@@ -262,6 +262,7 @@ int OSMP_Send(const void *buf, int count, OSMP_Datatype datatype, int dest) {
 void *isend(OSMP_Request *request){
     debug("*ISEND START", rankNow, NULL, NULL);
     OSMP_Send(&request->buf, request->count, request->datatype, request->dest);
+    request->complete = TRUE;
     debug("*ISEND END", rankNow, NULL, NULL);
 }
 
@@ -318,20 +319,21 @@ int OSMP_Recv(void *buf, int count, OSMP_Datatype datatype, int *source, int *le
 
 void *ircv(OSMP_Request *request){
     debug("*IRCV START", rankNow, NULL, NULL);
-    while(shm->p[rankNow].firstEmptySlot != 0) {
         OSMP_Recv(&request->buf, request->count, request->datatype, &request->source, &request->len);
-        sleep(1);
-    }
     debug("*IRCV END", rankNow, NULL, NULL);
 }
 
 
 int OSMP_Irecv(void *buf, int count, OSMP_Datatype datatype, int *source, int *len, OSMP_Request request){
     debug("OSMP_IRECV START", rankNow, NULL, NULL);
+    request.datatype = datatype;
+    request.len = *len;
+    request.count = count;
+    request.source = *source;
+    memcpy(&request.buf, buf, count * sizeof(datatype));
     pthread_create(&request.thread, NULL, (void * (*) (void * ))ircv, &request);
     debug("OSMP_IRECV END", rankNow, NULL, NULL);
     return 0;
-    
     }
 
 
@@ -362,7 +364,7 @@ int OSMP_Bcast(void *buf, int count, OSMP_Datatype datatype, bool send, int *sou
 
 
 int OSMP_CreateRequest(OSMP_Request *request){
-    debug("OSMP_CreateRequest START", rankNow, NULL, NULL);
+    debug("OSMP_CREATEREQUEST START", rankNow, NULL, NULL);
 
     pthread_condattr_t request_cond_attr;
     pthread_condattr_init(&request_cond_attr);
@@ -372,8 +374,7 @@ int OSMP_CreateRequest(OSMP_Request *request){
     pthread_mutexattr_init(&mutex_request_attr);
     pthread_mutexattr_setpshared(&mutex_request_attr, PTHREAD_PROCESS_SHARED);
 
-    request = malloc(sizeof(OSMP_Request));
-    request->thread = 0;
+    request->thread = NULL;
     memcpy(&request->buf, "\0", 1);
     request->datatype = 0;
     request->count = 0;
@@ -382,18 +383,18 @@ int OSMP_CreateRequest(OSMP_Request *request){
     request->len = 1;
     pthread_cond_init(&request->request_cond, &request_cond_attr);
     pthread_mutex_init(&request->request_mutex, &mutex_request_attr);
-    request->complete = 0;
-    debug("OSMP_CreateRequest END", rankNow, NULL, NULL);
-    return OSMP_SUCCESS;   
+    request->complete = false;
+    debug("OSMP_CREATEREQUEST END", rankNow, NULL, NULL);
+    return OSMP_SUCCESS;
 }
 
 int OSMP_Wait(OSMP_Request request){
-    debug("OSMP_Wait START", rankNow, NULL, NULL);
+    debug("OSMP_WAIT START", rankNow, NULL, NULL);
+    pthread_mutex_lock(&request.request_mutex);
     pthread_join( request.thread, NULL);
+    pthread_mutex_unlock(&request.request_mutex);
     debug("OSMP_WAIT END", rankNow, NULL, NULL);
     return OSMP_SUCCESS;
-        
-
 }
 
 int OSMP_RemoveRequest(OSMP_Request *request){

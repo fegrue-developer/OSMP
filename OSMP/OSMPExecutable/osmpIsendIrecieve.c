@@ -33,9 +33,9 @@ int main(int argc, char *argv[]) {
         rv = OSMP_Irecv( bufout, size, OSMP_INT, &source, &len, request );
         // // do something important…
         // // check if operation is completed and wait if not
-        // rv = OSMP_Wait( request );
-        // printf("OSMP process %d received %d byte from %d [%d] \n", rank, len, source, bufout);
-        // rv = OSMP_RemoveRequest( &request );
+        rv = OSMP_Wait( request );
+        printf("OSMP process %d received %d byte from %d [%d] \n", rank, len, source, bufout);
+        rv = OSMP_RemoveRequest( &request );
     }
     rv = OSMP_Finalize();
     return 0;
