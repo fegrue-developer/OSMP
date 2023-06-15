@@ -259,10 +259,10 @@ int OSMP_Send(const void *buf, int count, OSMP_Datatype datatype, int dest) {
     debug("OSMP_SEND END", rankNow, NULL, NULL);
     return 0;
 }
-void *isend(OSMP_Request *request){
+void *isend(OSMP_Request request){
     debug("*ISEND START", rankNow, NULL, NULL);
-    OSMP_Send(&request->buf, request->count, request->datatype, request->dest);
-    request->complete = TRUE;
+    OSMP_Send(&request.buf, request.count, request.datatype, request.dest);
+    request.complete = TRUE;
     debug("*ISEND END", rankNow, NULL, NULL);
 }
 
@@ -284,8 +284,8 @@ int OSMP_Isend(const void *buf, int count, OSMP_Datatype datatype, int dest, OSM
     }
 }
 
-int OSMP_Test(OSMP_Request *request, int flag){
-    return request->complete;
+int OSMP_Test(OSMP_Request request, int flag){
+    return request.complete;
 }
 
 
@@ -293,21 +293,21 @@ int OSMP_Test(OSMP_Request *request, int flag){
 int OSMP_Recv(void *buf, int count, OSMP_Datatype datatype, int *source, int *len) {
     debug("OSMP_RECV START", rankNow, NULL, NULL);
     int i = 0;
+
     for (i = 0; i < shm->processAmount; i++) {
         if (shm->p[i].pid == getpid()) {
 
             sem_wait(&shm->p[i].full);
-            
-            pthread_mutex_lock(&shm->mutex);
-            debug("OSMP_RECV START", rankNow, NULL, NULL);
 
+            pthread_mutex_lock(&shm->mutex);
             *source = shm->p[i].msg[shm->p[i].firstmsg].srcRank;
             *len = shm->p[i].msg[shm->p[i].firstmsg].msgLen;
-            memcpy(buf, shm->p[i].msg[shm->p[i].firstmsg].buffer, count * sizeof(datatype));
+            memcpy(buf, shm->p[i].msg[shm->p[i].firstmsg].buffer, *len);
             shm->p[i].firstmsg--;
             shm->p[i].firstEmptySlot--;
             pthread_mutex_unlock(&shm->mutex);
             sem_post(&shm->p[i].empty);
+
         }
 
     }
@@ -317,21 +317,40 @@ int OSMP_Recv(void *buf, int count, OSMP_Datatype datatype, int *source, int *le
 }
 
 
-void *ircv(OSMP_Request *request){
+void *ircv(OSMP_Request request){
     debug("*IRCV START", rankNow, NULL, NULL);
-        OSMP_Recv(&request->buf, request->count, request->datatype, &request->source, &request->len);
+    printf("Child %d\n", getpid());
+    printf("0: %d\n", shm->p[0].firstEmptySlot);
+    printf("1: %d\n", shm->p[1].firstEmptySlot);
+
+    OSMP_Recv(&request.buf, request.count, request.datatype, &request.source, &request.len);
+
+    printf("0: %d\n", shm->p[0].firstEmptySlot);
+    printf("1: %d\n", shm->p[1].firstEmptySlot);
+
     debug("*IRCV END", rankNow, NULL, NULL);
 }
 
 
-int OSMP_Irecv(void *buf, int count, OSMP_Datatype datatype, int *source, int *len, OSMP_Request request){
+int OSMP_Irecv(void *buf, int count, OSMP_Datatype datatype, int *source, int *len, OSMP_Request *request){
+    //sleep(2);
     debug("OSMP_IRECV START", rankNow, NULL, NULL);
-    request.datatype = datatype;
-    request.len = *len;
-    request.count = count;
-    request.source = *source;
-    memcpy(&request.buf, buf, count * sizeof(datatype));
-    pthread_create(&request.thread, NULL, (void * (*) (void * ))ircv, &request);
+    int err = pthread_create(&request->thread, NULL, (void * (*) (void * ))ircv, &request);
+    printf("IRECV THREAD NUMB %lu\n", (unsigned long)request->thread);
+/*    if ( err != 0){
+        printf("Error at generating thread!!! ERRNO : %d\n", err);
+        debug("OSMP_IRECV", rankNow, "Error at generating thread", NULL);
+        exit(-1);
+    }*/
+    debug("OSMP_IRECV before Mutex", rankNow, NULL, NULL);
+    pthread_mutex_lock(&request->request_mutex);
+    memcpy( buf,&request->buf,  *len);
+    *source = request->source ;
+    count = request->count;
+    datatype = request->datatype;
+    * len = request->len;
+    pthread_mutex_unlock(&request->request_mutex);
+
     debug("OSMP_IRECV END", rankNow, NULL, NULL);
     return 0;
     }
@@ -365,7 +384,7 @@ int OSMP_Bcast(void *buf, int count, OSMP_Datatype datatype, bool send, int *sou
 
 int OSMP_CreateRequest(OSMP_Request *request){
     debug("OSMP_CREATEREQUEST START", rankNow, NULL, NULL);
-
+    
     pthread_condattr_t request_cond_attr;
     pthread_condattr_init(&request_cond_attr);
     pthread_condattr_setpshared(&request_cond_attr, PTHREAD_PROCESS_SHARED);
@@ -374,7 +393,8 @@ int OSMP_CreateRequest(OSMP_Request *request){
     pthread_mutexattr_init(&mutex_request_attr);
     pthread_mutexattr_setpshared(&mutex_request_attr, PTHREAD_PROCESS_SHARED);
 
-    request->thread = NULL;
+    pthread_t thread_request = 0;
+    request->thread = thread_request;
     memcpy(&request->buf, "\0", 1);
     request->datatype = 0;
     request->count = 0;
@@ -391,8 +411,12 @@ int OSMP_CreateRequest(OSMP_Request *request){
 int OSMP_Wait(OSMP_Request request){
     debug("OSMP_WAIT START", rankNow, NULL, NULL);
     pthread_mutex_lock(&request.request_mutex);
+    debug("OSMP_WAIT mutex", rankNow, NULL, NULL);
+    printf(" WAIT THREAD = %ld\n", request.thread);
     pthread_join( request.thread, NULL);
+    debug("OSMP_WAIT join", rankNow, NULL, NULL);
     pthread_mutex_unlock(&request.request_mutex);
+    debug("OSMP_THREAD_FINISHED", rankNow, NULL, NULL);
     debug("OSMP_WAIT END", rankNow, NULL, NULL);
     return OSMP_SUCCESS;
 }

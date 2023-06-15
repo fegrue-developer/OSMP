@@ -85,7 +85,7 @@ typedef struct {
     pthread_cond_t request_cond;
     pthread_mutex_t request_mutex;
     bool complete; //Status der Operation 0=pending; 1=complete;
-}OSMP_Request;
+}  OSMP_Request;
 
 typedef struct {
     int logIntensity;
@@ -122,11 +122,9 @@ int OSMP_Bcast(void *buf, int count, OSMP_Datatype datatype, bool send, int *sou
 
 int OSMP_Barrier();
 
-int calculateStruct(int *rank);
-
 int OSMP_Isend(const void *buf, int count, OSMP_Datatype datatype, int dest, OSMP_Request request);
 
-int OSMP_Irecv(void *buf, int count, OSMP_Datatype datatype, int *source, int *len, OSMP_Request request);
+int OSMP_Irecv(void *buf, int count, OSMP_Datatype datatype, int *source, int *len, OSMP_Request* request);
 
 int OSMP_CreateRequest(OSMP_Request *request);
 
